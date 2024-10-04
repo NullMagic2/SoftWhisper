@@ -6,3 +6,4 @@ transformers>=4.28.1
 whisper>=1.0
 python-vlc>=3.0.0
 psutil
+pytorch-lightning==2.4.0
