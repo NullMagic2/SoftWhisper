@@ -4,6 +4,5 @@ pydub>=0.25.1
 torch>=1.13.1
 transformers>=4.28.1
 whisper>=1.0
-tk>=8.6
-vlc>=3.0.0
+python-vlc>=3.0.0
 psutil
