@@ -1,0 +1,9 @@
+pyannote.audio==2.1.1
+pyaudio>=0.2.11
+pydub>=0.25.1
+torch>=1.13.1
+transformers>=4.28.1
+whisper>=1.0
+tk>=8.6
+vlc>=3.0.0
+psutil
