@@ -3,7 +3,8 @@ This tutorial will guide you through the steps to install and run SoftWhisper.
 
 PREREQUISITES:
 
-* Python 3.7 or higher: You can download it from python.org.
+* Python 3.7 or higher: 
+You can download it from python.org, from your distro (if you run Linux) or from the Microsoft Store (if you run Windows).
 
 REQUIRED LIBRARIES: SoftWhisper relies on several Python packages, including:
 
