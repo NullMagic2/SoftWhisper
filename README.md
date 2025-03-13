@@ -1,3 +1,5 @@
+(Please note this is the legacy branch, and is only provided for compatibility. The newer branch should be preferred for its much better performance.)
+
 # SoftWhisper March 2025 is out!
 
 **Big Changes Around**
@@ -25,29 +27,3 @@ And that's it! The models will also be downloaded for you if you don't have them
 Please note that I haven't tested this application under Linux; however, just placing a compiled Whisper.cpp of your choice under the same folder
 as the project should work. The default name the application will look for is Whisper_lin-x64; however, you can also select the directory of your choice
 by simply starting the application and changing the directory under the option "Whisper.cpp executable."
-
-### Installation steps
-#### Windows
-
-Just click on SoftWhisper.bat. If any dependency is missing, you will be prompted to install it.
-If that fails, install the dependencies manually with the command:
-<br>
-`pip install -r requirements.txt`
-
-## Linux
-For now, convenience scripts are not available. 
-Install the dependencies with:
-<br>
-`pip install -r requirements.txt`
-
-and then run SoftWhisper with:
-<br>
-`python SoftWhisper.py`
-<br><br>
-
-
-**Known bugs**
-
-- Despite being very performant, this software still has many more lines of code than it should, which I will probably address in the future. 
-- I couldn't get speaker identification to work properly on this release, so it was disabled and removed from the interface.
-- When you select a new video, it won't load the video right away. You will need to press play.
