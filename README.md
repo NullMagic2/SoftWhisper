@@ -9,7 +9,7 @@ After some research, I created a ZLUDA branch to mimic CUDA; unfortunately, none
 
 But not all hope was lost.
 
-After more research and frustration, I heard of Whisper.cpp. It is a reimplementation of the OpenAI Whisper API in pure C++, and has no standalone dependencies. 
+After more research and frustration, I heard of Whisper.cpp. It is a reimplementation of the OpenAI Whisper API in pure C++, and has minimal dependencies. 
 Since it can easily use Vulkan, combines CPU + GPU acceleration and can be easily compiled on Linux, it would be worth a shot.
 
 The results are very surprising: Whisper.cpp can transcribe 2 hours of audio in around 2-3 minutes with my current hardware. 
@@ -25,6 +25,26 @@ And that's it! The models will also be downloaded for you if you don't have them
 Please note that I haven't tested this application under Linux; however, just placing a compiled Whisper.cpp of your choice under the same folder
 as the project should work. The default name the application will look for is Whisper_lin-x64; however, you can also select the directory of your choice
 by simply starting the application and changing the directory under the option "Whisper.cpp executable."
+
+### Installation steps
+#### Windows
+
+Just click on SoftWhisper.bat. If any dependency is missing, you will be prompted to install it.
+If that fails, install the dependencies manually with the command:
+<br>
+`pip install -r requirements.txt`
+
+## Linux
+For now, convenience scripts are not available. 
+Install the dependencies with:
+<br>
+`pip install -r requirements.txt`
+
+and then run SoftWhisper with:
+<br>
+`python SoftWhisper.py`
+<br><br>
+
 
 **Known bugs**
 
