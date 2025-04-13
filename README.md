@@ -82,6 +82,6 @@ pip install -r requirements.txt
 ## Acknowledgments
 
 This project uses the following open-source projects:
-- [Whisper](https://github.com/openai/whisper)
+- [Whisper.cpp](https://github.com/ggml-org/whisper.cpp)
 - [inaSpeechSegmenter](https://github.com/ina-foss/inaSpeechSegmenter)
 - [FFmpeg](https://ffmpeg.org/)
