@@ -1,1 +1,12 @@
-wxPython>=4.1.0
+psutil
+pydub
+python-vlc
+pillow
+numpy
+requests
+opencv-python
+requests
+pyannote.audio
+librosa
+opencv-python
+tensorflow
