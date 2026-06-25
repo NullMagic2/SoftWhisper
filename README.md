@@ -8,6 +8,23 @@ You can easily select custom models, languages, and tasks, fine-tune transcripti
 👥 Speaker identification<br>
 🌍 Supports all languages supported by the Whisper model (+30)<br>
 🎮 User-friendly GUI interface<br>
+☁️ Optional cloud transcription via the TwelveLabs Pegasus model<br>
+
+## Transcription engines
+
+SoftWhisper supports two transcription engines, selectable from the **Engine**
+dropdown in *Optional Settings*:
+
+- **whisper.cpp** (default) — runs locally using the bundled Whisper.cpp model.
+  No account or network required.
+- **twelvelabs-pegasus** — runs in the cloud using the TwelveLabs Pegasus
+  video-understanding model. This is fully opt-in and never changes the default
+  behavior.
+
+To use the TwelveLabs engine, set a `TWELVELABS_API_KEY` environment variable
+(or paste a key into the *TwelveLabs API Key* field) and select
+`twelvelabs-pegasus` from the Engine dropdown. You can grab a free API key at
+https://twelvelabs.io — there's a generous free tier.
 
 ## Usage
 

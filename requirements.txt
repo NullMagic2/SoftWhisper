@@ -10,3 +10,4 @@ pyannote.audio
 librosa
 opencv-python
 tensorflow
+twelvelabs>=1.2.8
