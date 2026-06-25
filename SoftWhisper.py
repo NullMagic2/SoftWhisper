@@ -76,6 +76,16 @@ def set_console_redirect(console_queue):
 def transcribe_audio(file_path, options, progress_callback=None, status_callback=None, stop_event=None):
     file_path = os.path.abspath(file_path)
     debug_print(f"transcribe_audio() => Processing file: {file_path}")
+
+    # Opt-in cloud backend: route to TwelveLabs Pegasus when selected. The
+    # default ('whisper.cpp') path below is unchanged.
+    if options.get('engine') == 'twelvelabs-pegasus':
+        from twelvelabs_backend import transcribe_with_pegasus
+        debug_print("Using TwelveLabs Pegasus transcription backend.")
+        return transcribe_with_pegasus(
+            file_path, options, progress_callback, status_callback, stop_event
+        )
+
     model_name = options.get('model_name', 'base')
     model_path = os.path.abspath(os.path.join("models", "whisper", f"ggml-{model_name}.bin"))
     language = options.get('language', 'auto')
@@ -280,6 +290,10 @@ class SoftWhisper:
         self.previous_model = "base"
         self.model_var = tk.StringVar(value="base")
         self.task_var = tk.StringVar(value="transcribe")
+        # Transcription engine: "whisper.cpp" (default, local) or
+        # "twelvelabs-pegasus" (opt-in cloud backend).
+        self.engine_var = tk.StringVar(value="whisper.cpp")
+        self.twelvelabs_api_key_var = tk.StringVar(value=os.environ.get("TWELVELABS_API_KEY", ""))
         self.language_var = tk.StringVar(value="auto")
         self.beam_size_var = tk.IntVar(value=5)
         self.start_time_var = tk.StringVar(value="00:00:00")
@@ -397,67 +411,83 @@ class SoftWhisper:
         settings_frame = tk.LabelFrame(right_frame, text="Optional Settings", padx=10, pady=10, font=("Arial", 12))
         settings_frame.pack(padx=10, pady=10, fill="x")
 
-        # Row 0: Model
-        tk.Label(settings_frame, text="Model:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        # Row 0: Engine (transcription backend)
+        tk.Label(settings_frame, text="Engine:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        engine_options = ["whisper.cpp", "twelvelabs-pegasus"]
+        self.engine_menu = ttk.Combobox(settings_frame, textvariable=self.engine_var, values=engine_options,
+                                        state="readonly", width=20, font=("Arial", 10))
+        self.engine_menu.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        self.engine_menu.bind("<<ComboboxSelected>>", self.on_engine_change)
+
+        # Row 1: Model
+        tk.Label(settings_frame, text="Model:", font=("Arial", 10)).grid(row=1, column=0, sticky="w", padx=5, pady=5)
         model_options = ["tiny", "tiny.en", "base", "base.en", "small", "small.en",
                          "medium", "medium.en", "large", "large-v2", "large-v3", "large-v3-turbo"]
         self.model_menu = ttk.Combobox(settings_frame, textvariable=self.model_var, values=model_options,
                                        state="readonly", width=20, font=("Arial", 10))
-        self.model_menu.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        self.model_menu.grid(row=1, column=1, sticky="w", padx=5, pady=5)
         self.model_menu.bind("<<ComboboxSelected>>", self.on_model_change)
 
-        # Row 1: Task
-        tk.Label(settings_frame, text="Task:", font=("Arial", 10)).grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        # Row 2: Task
+        tk.Label(settings_frame, text="Task:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", padx=5, pady=5)
         task_options = ["transcribe", "translate"]
         self.task_menu = ttk.Combobox(settings_frame, textvariable=self.task_var, values=task_options,
                                       state="readonly", width=20, font=("Arial", 10))
-        self.task_menu.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        self.task_menu.grid(row=2, column=1, sticky="w", padx=5, pady=5)
 
-        # Row 2: Language
-        tk.Label(settings_frame, text="Language:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        # Row 3: Language
+        tk.Label(settings_frame, text="Language:", font=("Arial", 10)).grid(row=3, column=0, sticky="w", padx=5, pady=5)
         lang_container = tk.Frame(settings_frame)
-        lang_container.grid(row=2, column=1, sticky="w", padx=5, pady=5, columnspan=2)
+        lang_container.grid(row=3, column=1, sticky="w", padx=5, pady=5, columnspan=2)
 
         self.language_entry = tk.Entry(lang_container, textvariable=self.language_var, width=20, font=("Arial", 10))
         self.language_entry.pack(side="top", anchor="w")
 
         tk.Label(lang_container, text="(Use \"auto\" for auto-detection)", font=("Arial", 8)).pack(side="top", anchor="w")
 
-        # Row 3: Beam Size
-        tk.Label(settings_frame, text="Beam Size:", font=("Arial", 10)).grid(row=3, column=0, sticky="w", padx=5, pady=5)
+        # Row 4: Beam Size
+        tk.Label(settings_frame, text="Beam Size:", font=("Arial", 10)).grid(row=4, column=0, sticky="w", padx=5, pady=5)
         self.beam_size_spinbox = tk.Spinbox(settings_frame, from_=1, to=10, textvariable=self.beam_size_var,
                                             width=5, font=("Arial", 10))
-        self.beam_size_spinbox.grid(row=3, column=1, sticky="w", padx=5, pady=5)
+        self.beam_size_spinbox.grid(row=4, column=1, sticky="w", padx=5, pady=5)
 
-        # Row 4: Start Time
-        tk.Label(settings_frame, text="Start Time [hh:mm:ss]:", font=("Arial", 10)).grid(row=4, column=0, sticky="w", padx=5, pady=5)
+        # Row 5: Start Time
+        tk.Label(settings_frame, text="Start Time [hh:mm:ss]:", font=("Arial", 10)).grid(row=5, column=0, sticky="w", padx=5, pady=5)
         self.start_time_entry = tk.Entry(settings_frame, textvariable=self.start_time_var, width=10, font=("Arial", 10))
-        self.start_time_entry.grid(row=4, column=1, sticky="w", padx=5, pady=5)
+        self.start_time_entry.grid(row=5, column=1, sticky="w", padx=5, pady=5)
 
-        # Row 5: End Time
-        tk.Label(settings_frame, text="End Time [hh:mm:ss]:", font=("Arial", 10)).grid(row=5, column=0, sticky="w", padx=5, pady=5)
+        # Row 6: End Time
+        tk.Label(settings_frame, text="End Time [hh:mm:ss]:", font=("Arial", 10)).grid(row=6, column=0, sticky="w", padx=5, pady=5)
         endtime_container = tk.Frame(settings_frame)
-        endtime_container.grid(row=5, column=1, sticky="w", padx=5, pady=5, columnspan=2)
+        endtime_container.grid(row=6, column=1, sticky="w", padx=5, pady=5, columnspan=2)
 
         self.end_time_entry = tk.Entry(endtime_container, textvariable=self.end_time_var, width=10, font=("Arial", 10))
         self.end_time_entry.pack(side="top", anchor="w")
 
         tk.Label(endtime_container, text="(Leave empty for full duration)", font=("Arial", 8)).pack(side="top", anchor="w")
 
-        # Row 6: Generate SRT Subtitles Checkbox
+        # Row 7: Generate SRT Subtitles Checkbox
         self.srt_checkbox = tk.Checkbutton(settings_frame, text="Generate SRT Subtitles", variable=self.srt_var, anchor="w")
-        self.srt_checkbox.grid(row=6, column=1, sticky="w", padx=5, pady=2)
+        self.srt_checkbox.grid(row=7, column=1, sticky="w", padx=5, pady=2)
 
-        # Row 7: Enable Diarization Checkbox
+        # Row 8: Enable Diarization Checkbox
         self.diarization_option = DiarizationOption(settings_frame)
-        self.diarization_option.checkbox.grid(row=7, column=1, sticky="w", padx=5, pady=2)
+        self.diarization_option.checkbox.grid(row=8, column=1, sticky="w", padx=5, pady=2)
 
-        # Row 8: Whisper.cpp Executable
-        tk.Label(settings_frame, text="Whisper.cpp Executable:", font=("Arial", 10)).grid(row=8, column=0, sticky="w", padx=5, pady=5)
+        # Row 9: Whisper.cpp Executable
+        tk.Label(settings_frame, text="Whisper.cpp Executable:", font=("Arial", 10)).grid(row=9, column=0, sticky="w", padx=5, pady=5)
         self.whisper_location_entry = tk.Entry(settings_frame, textvariable=self.WHISPER_CPP_PATH, width=40, font=("Arial", 10))
-        self.whisper_location_entry.grid(row=8, column=1, sticky="w", padx=5, pady=5)
+        self.whisper_location_entry.grid(row=9, column=1, sticky="w", padx=5, pady=5)
         self.whisper_browse_button = tk.Button(settings_frame, text="Browse", command=self.browse_whisper_executable, font=("Arial", 10))
-        self.whisper_browse_button.grid(row=8, column=2, sticky="w", padx=5, pady=5)
+        self.whisper_browse_button.grid(row=9, column=2, sticky="w", padx=5, pady=5)
+
+        # Row 10: TwelveLabs API key (used only by the Pegasus engine)
+        tk.Label(settings_frame, text="TwelveLabs API Key:", font=("Arial", 10)).grid(row=10, column=0, sticky="w", padx=5, pady=5)
+        self.twelvelabs_key_entry = tk.Entry(settings_frame, textvariable=self.twelvelabs_api_key_var,
+                                             width=40, show="*", font=("Arial", 10))
+        self.twelvelabs_key_entry.grid(row=10, column=1, sticky="w", padx=5, pady=5)
+        tk.Label(settings_frame, text="(or set TWELVELABS_API_KEY env var)", font=("Arial", 8)).grid(
+            row=11, column=1, sticky="w", padx=5)
 
         # ---------------------------
         # Transcription Frame
@@ -602,6 +632,8 @@ class SoftWhisper:
                 self.beam_size_var.set(config.get('beam_size', 5))
                 # Restore Whisper path
                 self.WHISPER_CPP_PATH.set(config.get('WHISPER_CPP_PATH', get_default_whisper_cpp_path()))
+                # Restore transcription engine (default: local Whisper.cpp)
+                self.engine_var.set(config.get('engine', 'whisper.cpp'))
                 # Restore last‑opened folder (fallback to already-set self.last_dir)
                 self.last_dir = config.get('last_dir', self.last_dir)
                 debug_print(f"Configuration loaded: {config}")
@@ -614,7 +646,8 @@ class SoftWhisper:
         config = {
             'beam_size': self.beam_size_var.get(),
             'WHISPER_CPP_PATH': self.WHISPER_CPP_PATH.get(),
-            'last_dir': self.last_dir
+            'last_dir': self.last_dir,
+            'engine': self.engine_var.get()
         }
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -630,6 +663,12 @@ class SoftWhisper:
 
     def load_model(self):
         debug_print("Entering load_model()")
+        # The TwelveLabs Pegasus engine is cloud-based; no local model file.
+        if self.engine_var.get() == "twelvelabs-pegasus":
+            self.model_loaded = True
+            self.progress_queue.put((100, "TwelveLabs Pegasus engine ready (cloud)"))
+            self.root.after(0, self.enable_buttons)
+            return
         selected_model = self.model_var.get()
         try:
             self.progress_queue.put((0, f"Checking model '{selected_model}'..."))
@@ -647,6 +686,22 @@ class SoftWhisper:
             self.model_var.set(self.previous_model if hasattr(self, 'previous_model') else "base")
             self.root.after(0, self.enable_buttons)
             debug_print("load_model() encountered an error.")
+
+    def on_engine_change(self, event):
+        debug_print(f"Engine change requested: {self.engine_var.get()}")
+        self.save_config()
+        if self.engine_var.get() == "twelvelabs-pegasus":
+            # Cloud engine needs no local model file; allow starting immediately.
+            self.model_loaded = True
+            self.update_status("TwelveLabs Pegasus engine selected (cloud).", "blue")
+            self.root.after(0, self.enable_buttons)
+        else:
+            # Switching back to local Whisper.cpp: re-check the model file.
+            self.model_loaded = False
+            self.update_status("Checking selected Whisper.cpp model...", "blue")
+            self.disable_buttons()
+            self.model_loading_thread = threading.Thread(target=self.load_model, daemon=True)
+            self.model_loading_thread.start()
 
     def on_model_change(self, event):
         debug_print("Model change requested")
@@ -746,6 +801,7 @@ class SoftWhisper:
             debug_print(f"Language setting: '{lang}'")
 
             options = {
+                'engine': self.engine_var.get(),
                 'model_name': self.model_var.get(),
                 'task': self.task_var.get(),
                 'language': lang,
@@ -754,24 +810,28 @@ class SoftWhisper:
                 'end_time': self.end_time_var.get().strip(),
                 'generate_srt': self.srt_var.get(),
                 'parent_window': self.root,
-                'whisper_executable': self.WHISPER_CPP_PATH.get()
+                'whisper_executable': self.WHISPER_CPP_PATH.get(),
+                'twelvelabs_api_key': self.twelvelabs_api_key_var.get().strip(),
             }
-
-            # Resolve executable path
-            executable_abs = self._resolve_whisper_executable(options['whisper_executable'])
-            options['whisper_executable'] = executable_abs
-            debug_print(f"Using Whisper executable: {executable_abs}")
 
             # Absolute path for the input file
             file_path = os.path.abspath(file_path)
 
-            # Build a rough command template for debugging purposes
-            model_abs = os.path.abspath(os.path.join("models", "whisper", f"ggml-{options['model_name']}.bin"))
-            whisper_cmd = f"{executable_abs} -m {model_abs} -f {file_path} -l {options['language']} -bs {options['beam_size']}"
-            if options['task'] == 'translate':
-                whisper_cmd += " -translate"
-            whisper_cmd += " -oj"
-            debug_print(f"Command template: {whisper_cmd}")
+            # Whisper.cpp-only setup. The TwelveLabs Pegasus engine is
+            # cloud-based and needs no local executable, so skip it.
+            if options['engine'] != 'twelvelabs-pegasus':
+                # Resolve executable path
+                executable_abs = self._resolve_whisper_executable(options['whisper_executable'])
+                options['whisper_executable'] = executable_abs
+                debug_print(f"Using Whisper executable: {executable_abs}")
+
+                # Build a rough command template for debugging purposes
+                model_abs = os.path.abspath(os.path.join("models", "whisper", f"ggml-{options['model_name']}.bin"))
+                whisper_cmd = f"{executable_abs} -m {model_abs} -f {file_path} -l {options['language']} -bs {options['beam_size']}"
+                if options['task'] == 'translate':
+                    whisper_cmd += " -translate"
+                whisper_cmd += " -oj"
+                debug_print(f"Command template: {whisper_cmd}")
 
             # Define callbacks for progress and status updates
             def progress_callback(progress, message):
